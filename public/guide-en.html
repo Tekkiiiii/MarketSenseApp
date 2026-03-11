@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarketSense VN — AI Model Setup Guide</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #d4d4d8;
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 48px 24px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 48px;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #f97316, #dc2626);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .logo-text {
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #fff;
+            line-height: 1.2;
+            margin-bottom: 12px;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fff;
+            margin: 36px 0 12px;
+        }
+
+        p {
+            color: #a1a1aa;
+            margin-bottom: 12px;
+        }
+
+        .hero-sub {
+            font-size: 1.1rem;
+            color: #71717a;
+            margin-bottom: 40px;
+        }
+
+        .step {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 16px;
+        }
+
+        .step-num {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #f97316;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 6px;
+        }
+
+        .step-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+
+        .step p {
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+
+        code {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #f97316;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+
+        .cmd {
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #4ade80;
+            margin: 8px 0;
+        }
+
+        .cmd::before {
+            content: '$ ';
+            color: #52525b;
+        }
+
+        .copy-hint {
+            font-size: 0.7rem;
+            color: #52525b;
+            margin-top: 4px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+        }
+
+        th {
+            text-align: left;
+            padding: 10px 12px;
+            background: #111;
+            border-bottom: 1px solid #222;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #71717a;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #1a1a1a;
+            font-size: 0.85rem;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        .tag-green {
+            background: #052e16;
+            color: #4ade80;
+            border: 1px solid #14532d;
+        }
+
+        .tag-yellow {
+            background: #422006;
+            color: #fb923c;
+            border: 1px solid #7c2d12;
+        }
+
+        .tag-red {
+            background: #1c0a0a;
+            color: #f87171;
+            border: 1px solid #450a0a;
+        }
+
+        .note {
+            background: #0d1117;
+            border-left: 3px solid #f97316;
+            border-radius: 0 8px 8px 0;
+            padding: 14px 16px;
+            margin: 16px 0;
+            font-size: 0.875rem;
+            color: #a1a1aa;
+        }
+
+        .success {
+            background: #0d1a12;
+            border: 1px solid #14532d;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 32px;
+            color: #4ade80;
+            font-size: 0.9rem;
+        }
+
+        a {
+            color: #f97316;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="logo">
+            <div class="logo-icon">🛡️</div>
+            <div class="logo-text">MarketSense VN</div>
+        </div>
+
+        <h1>AI Model Setup Guide</h1>
+        <p class="hero-sub">3 simple steps to get local AI running on your machine — completely free, your data never
+            leaves your computer.</p>
+
+        <!-- Step 1 -->
+        <div class="step">
+            <div class="step-num">Step 1</div>
+            <div class="step-title">Install Ollama</div>
+            <p>Ollama is the program that lets AI models run directly on your PC — no cloud, no subscription.</p>
+            <p>Go to <a href="https://ollama.com" target="_blank">ollama.com</a> and download the installer for Windows
+                or Mac. Install it like any normal program (Next → Next → Finish).</p>
+            <p>Once installed, Ollama runs quietly in the system tray. You don't need to do anything in Ollama's UI
+                itself.</p>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step">
+            <div class="step-num">Step 2</div>
+            <div class="step-title">Choose the Right Model for Your PC</div>
+            <p>Check your RAM: <strong>Settings → System → About</strong> on Windows.</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>RAM Needed</th>
+                        <th>Speed</th>
+                        <th>Vietnamese</th>
+                        <th>Best For</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>qwen3.5:3b</code></td>
+                        <td>4 GB</td>
+                        <td><span class="tag tag-green">⚡ Very fast</span></td>
+                        <td>⭐⭐⭐⭐⭐</td>
+                        <td><span class="tag tag-green">✓ 8 GB RAM PCs</span></td>
+                    </tr>
+                    <tr>
+                        <td><code>llama3.2:3b</code></td>
+                        <td>4 GB</td>
+                        <td><span class="tag tag-green">⚡ Fast</span></td>
+                        <td>⭐⭐⭐</td>
+                        <td><span class="tag tag-green">✓ 8 GB RAM PCs</span></td>
+                    </tr>
+                    <tr>
+                        <td><code>qwen3.5:7b</code></td>
+                        <td>8 GB</td>
+                        <td><span class="tag tag-yellow">🟡 Moderate</span></td>
+                        <td>⭐⭐⭐⭐⭐</td>
+                        <td><span class="tag tag-yellow">✓ 16 GB RAM PCs</span></td>
+                    </tr>
+                    <tr>
+                        <td><code>phi-4</code></td>
+                        <td>14 GB</td>
+                        <td><span class="tag tag-red">🐢 Slow</span></td>
+                        <td>⭐⭐⭐⭐</td>
+                        <td><span class="tag tag-red">Needs 24 GB+ RAM</span></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="note">💡 <strong>Tip:</strong> Regular office PCs (8 GB RAM) → use <code>qwen3.5:3b</code>. 16
+                GB RAM → use <code>qwen3.5:7b</code> for better quality. Even small models work very well for structured
+                financial news extraction.</div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step">
+            <div class="step-num">Step 3</div>
+            <div class="step-title">Download the Model</div>
+            <p>Open <strong>Command Prompt</strong> (press <code>Win + R</code>, type <code>cmd</code>, press Enter) and
+                run:</p>
+            <p>For 8 GB RAM PCs (Best Choice):</p>
+            <div class="cmd">ollama pull qwen3.5:3b</div>
+            <p>For 16 GB RAM PCs (Higher Quality):</p>
+            <div class="cmd">ollama pull qwen3.5:7b</div>
+            <p class="copy-hint">⏳ Download takes 2–10 minutes depending on your internet speed. Only needs to be done
+                once.</p>
+            <p>When done, you'll see: <code style="color:#4ade80">success</code></p>
+        </div>
+
+        <!-- Done -->
+        <div class="success">
+            ✅ <strong>All done!</strong> Reopen MarketSense VN, go to <strong>Settings → AI Model</strong>, select the
+            model you just downloaded, and click Save. Then hit <strong>Scout Now</strong> to start monitoring the
+            market!
+        </div>
+
+        <br>
+        <p style="font-size:0.8rem;color:#3f3f46;">Need help? Visit <a href="https://ollama.com/library"
+                target="_blank">ollama.com/library</a> for the full list of available models.</p>
+    </div>
+</body>
+
+</html>
