@@ -1,0 +1,12 @@
+{
+  "id": "marketsenseapp",
+  "name": "MarketSenseApp",
+  "directories": ["~/.claude/projects/MarketSenseApp/**", "~/Desktop/MarketSenseApp/**"],
+  "filePatterns": ["*.rs", "*.tsx", "*.ts", "*.json", "*.toml"],
+  "excludedPaths": [],
+  "departments": ["engineering"],
+  "financialImportance": "medium",
+  "directorId": "marketsenseapp-pd",
+  "assistantId": null,
+  "memberIds": []
+}

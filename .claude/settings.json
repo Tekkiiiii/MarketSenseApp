@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(/Users/Tekki/.claude/projects/MarketSenseApp/**)",
+      "Read(/Users/Tekki/.claude/projects/MarketSenseApp/**)",
+      "Bash(cargo *)",
+      "Bash(cargo check *)",
+      "Bash(cargo build *)",
+      "Bash(cargo test *)",
+      "Bash(cd /Users/Tekki/.claude/projects/MarketSenseApp && *)",
+      "Bash(npm run dev *)",
+      "Bash(npm run build *)",
+      "Bash(npm run preview *)",
+      "Bash(npm run tauri *)",
+      "Bash(vite *)"
+    ],
+    "additionalDirectories": [
+      "/Users/Tekki/.claude/projects/MarketSenseApp"
+    ]
+  }
+}

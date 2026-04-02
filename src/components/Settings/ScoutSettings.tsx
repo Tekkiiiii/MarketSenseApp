@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Zap, CheckCircle2, Clock, Sun, Moon, Globe, Settings2, Database,
-         Trash2, RefreshCw, Download, AlertTriangle, Plus, X, CheckCircle } from 'lucide-react';
+         Trash2, RefreshCw, Download, AlertTriangle, Plus, X, CheckCircle, Bot } from 'lucide-react';
 import { clsx } from 'clsx';
 import { listen } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -52,9 +52,23 @@ const T: Record<string, Record<Lang, string>> = {
     installYes: { en: 'Yes, Install', vi: 'Có, Cài Ngay' },
     installNo: { en: 'Cancel', vi: 'Hủy' },
     pulling: { en: 'Downloading model...', vi: 'Đang tải mô hình...' },
-    pullDone: { en: '✅ Model installed! Activating...', vi: '✅ Đã cài xong! Đang kích hoạt...' },
-    pullFail: { en: '❌ Install failed. Check Ollama is running.', vi: '❌ Cài thất bại. Kiểm tra Ollama đang chạy.' },
+    pullDone: { en: 'Model installed! Activating...', vi: 'Đã cài xong! Đang kích hoạt...' },
+    pullFail: { en: 'Install failed. Check Ollama is running.', vi: 'Cài thất bại. Kiểm tra Ollama đang chạy.' },
     retry: { en: 'Retry', vi: 'Thử lại' },
+    backendTitle: { en: 'AI Backend', vi: 'Nền Tảng AI' },
+    backendSub: { en: 'Choose where AI analysis runs.', vi: 'Chọn nơi phân tích AI chạy.' },
+    backendOllama: { en: 'Ollama (local)', vi: 'Ollama (cục bộ)' },
+    backendClaude: { en: 'Claude API', vi: 'Claude API' },
+    backendTekki: { en: 'Tekki API', vi: 'Tekki API' },
+    backendOllamaDesc: { en: 'Free · Runs on your machine', vi: 'Miễn phí · Chạy trên máy bạn' },
+    backendClaudeDesc: { en: 'Uses your own API key', vi: 'Dùng API key của bạn' },
+    backendTekkiDesc: { en: 'Hosted by Tekki', vi: 'Được Tekki vận hành' },
+    apiKeyLabel: { en: 'API Key', vi: 'API Key' },
+    apiKeyPlaceholder: { en: 'sk-ant-...', vi: 'sk-ant-...' },
+    tekkiEndpoint: { en: 'API Endpoint', vi: 'Địa chỉ API' },
+    tekkiEndpointPlaceholder: { en: 'https://api.tekki.vn/v1/analyze', vi: 'https://api.tekki.vn/v1/analyze' },
+    apiKeySave: { en: 'Save', vi: 'Lưu' },
+    apiKeySaved: { en: 'Saved', vi: 'Đã lưu' },
 };
 const tx = (key: string, lang: Lang) => T[key]?.[lang] ?? key;
 
@@ -81,16 +95,21 @@ const PRUNE_OPTIONS: { key: DbSettings['prune_interval']; labelEn: string; label
 
 // Preset models with estimated disk sizes
 const PRESET_MODELS = [
-    { name: 'qwen3.5:3b',    sizeGb: 2.0, desc: 'Fast · Good Vietnamese' },
+    { name: 'qwen2.5:3b',    sizeGb: 2.0, desc: 'Fast · Good Vietnamese' },
     { name: 'llama3.2:3b',   sizeGb: 2.0, desc: 'Fast · General' },
-    { name: 'qwen3.5:7b',    sizeGb: 5.0, desc: 'Better quality' },
-    { name: 'phi-4',         sizeGb: 9.0, desc: 'Strong reasoning' },
+    { name: 'qwen2.5:7b',    sizeGb: 5.0, desc: 'Better quality' },
+    { name: 'phi4',          sizeGb: 9.0, desc: 'Strong reasoning' },
+    { name: 'deepseek-r1:1.5b', sizeGb: 1.1, desc: 'Ultra-light · Fast' },
+    { name: 'mistral:7b',    sizeGb: 4.1, desc: 'Balanced · General' },
+    { name: 'qwen2.5-coder:3b', sizeGb: 2.0, desc: 'Code-aware' },
+    { name: 'gemma3:4b',    sizeGb: 2.5, desc: 'Google · Light' },
 ];
 
 const MODEL_SIZE_MAP: Record<string, number> = {
-    'qwen3.5:3b': 2.0, 'llama3.2:3b': 2.0, 'qwen3.5:7b': 5.0,
-    'phi-4': 9.0, 'deepseek-r1:latest': 4.7, 'gemma3:4b': 2.5,
-    'mistral:latest': 4.1, 'llama3:latest': 4.7,
+    'qwen2.5:3b': 2.0, 'llama3.2:3b': 2.0, 'qwen2.5:7b': 5.0,
+    'phi4': 9.0, 'deepseek-r1:1.5b': 1.1, 'gemma3:4b': 2.5,
+    'mistral:7b': 4.1, 'qwen2.5-coder:3b': 2.0,
+    'deepseek-r1:latest': 4.7, 'llama3:latest': 4.7, 'qwen3:4b': 2.4,
 };
 
 // ─── Install Modal ────────────────────────────────────────────────────────────
@@ -252,10 +271,18 @@ export default function ScoutSettings() {
     // AI / Ollama state
     const [ollamaInstalled, setOllamaInstalled] = useState<boolean | null>(null); // null = loading
     const [installedModels, setInstalledModels] = useState<string[]>([]);
-    const [ollamaModel, setOllamaModel] = useState('qwen3.5:3b');
+    const [ollamaModel, setOllamaModel] = useState('qwen2.5:3b');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [lastAnalystResult, setLastAnalystResult] = useState<number | null>(null);
     const [freeDiskGb, setFreeDiskGb] = useState(0);
+
+    // Analyzer backend
+    const [analyzerBackend, setAnalyzerBackend] = useState<'ollama' | 'claude' | 'tekki'>('ollama');
+    const [claudeApiKey, setClaudeApiKey] = useState('');
+    const [claudeModel, setClaudeModel] = useState('claude-sonnet-4-20250514');
+    const [tekkiApiKey, setTekkiApiKey] = useState('');
+    const [tekkiEndpoint, setTekkiEndpoint] = useState('https://api.tekki.vn/v1/analyze');
+    const [apiKeySaved, setApiKeySaved] = useState(false);
 
     // Custom model input
     const [customInput, setCustomInput] = useState('');
@@ -268,10 +295,19 @@ export default function ScoutSettings() {
         db.getSettings().then(s => {
             setPruneInterval(s.prune_interval);
             setFrequency(s.scout_frequency_mins);
+            if (s.analyzer_backend === 'ollama' || s.analyzer_backend === 'claude' || s.analyzer_backend === 'tekki') {
+                setAnalyzerBackend(s.analyzer_backend);
+            }
         }).catch(() => { });
         db.countArticles().then(setArticleCount).catch(() => { });
         db.getSetting('ollama_model').then(m => { if (m) setOllamaModel(m); }).catch(() => { });
         db.getFreeDiskGb().then(setFreeDiskGb).catch(() => { });
+
+        // Load API keys / endpoint
+        db.getSetting('user_api_key').then(v => { if (v) setClaudeApiKey(v); }).catch(() => { });
+        db.getSetting('user_model').then(v => { if (v) setClaudeModel(v); }).catch(() => { });
+        db.getSetting('tekki_api_key').then(v => { if (v) setTekkiApiKey(v); }).catch(() => { });
+        db.getSetting('tekki_api_endpoint').then(v => { if (v) setTekkiEndpoint(v); }).catch(() => { });
 
         // Ollama detection
         db.checkOllama().then(ok => {
@@ -315,6 +351,20 @@ export default function ScoutSettings() {
         setIsAnalyzing(true); setLastAnalystResult(null);
         try { setLastAnalystResult(await db.analyzeNow()); } catch { setLastAnalystResult(0); }
         setIsAnalyzing(false);
+    };
+
+    const handleBackendChange = async (backend: 'ollama' | 'claude' | 'tekki') => {
+        setAnalyzerBackend(backend);
+        await db.setSetting('analyzer_backend', backend).catch(() => { });
+    };
+
+    const handleSaveApiKeys = async () => {
+        await db.setSetting('user_api_key', claudeApiKey).catch(() => { });
+        await db.setSetting('user_model', claudeModel).catch(() => { });
+        await db.setSetting('tekki_api_key', tekkiApiKey).catch(() => { });
+        await db.setSetting('tekki_api_endpoint', tekkiEndpoint).catch(() => { });
+        setApiKeySaved(true);
+        setTimeout(() => setApiKeySaved(false), 2000);
     };
 
     const selectModel = async (name: string) => {
@@ -408,7 +458,7 @@ export default function ScoutSettings() {
                             { value: 'en' as Lang, flag: '🇺🇸', label: 'English' },
                             { value: 'vi' as Lang, flag: '🇻🇳', label: 'Tiếng Việt' },
                         ]).map(l => (
-                            <button key={l.value} onClick={() => setLang(l.value)}
+                            <button key={l.value} onClick={() => { setLang(l.value); db.setSetting('language', l.value).catch(() => {}); }}
                                 className={clsx(
                                     'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border text-sm font-semibold transition-all',
                                     lang === l.value ? 'bg-blood/15 border-blood/40 text-white shadow-[0_0_12px_rgba(225,29,72,0.2)]'
@@ -474,7 +524,105 @@ export default function ScoutSettings() {
                     {frequency === 0 && <p className="text-xs text-zinc-500">{tx('freqDisabled', lang)}</p>}
                 </div>
 
-                {/* ─── AI Model ───────────────────────────────────────────── */}
+                {/* ─── AI Backend Selector ───────────────────────────────── */}
+                <div className={`${card} md:col-span-2`}>
+                    <div className="flex items-center gap-2">
+                        <Bot size={18} className="text-purple-400" />
+                        <h3 className="font-bold text-base text-white">{tx('backendTitle', lang)}</h3>
+                    </div>
+                    <p className="text-zinc-400 text-xs">{tx('backendSub', lang)}</p>
+
+                    {/* Backend tabs */}
+                    <div className="grid grid-cols-3 gap-2">
+                        {([
+                            { key: 'ollama', icon: <Zap size={13} />, label: tx('backendOllama', lang), desc: tx('backendOllamaDesc', lang), color: 'amber' },
+                            { key: 'claude', icon: <Bot size={13} />, label: tx('backendClaude', lang), desc: tx('backendClaudeDesc', lang), color: 'violet' },
+                            { key: 'tekki', icon: <Bot size={13} />, label: tx('backendTekki', lang), desc: tx('backendTekkiDesc', lang), color: 'sky' },
+                        ] as const).map(opt => (
+                            <button key={opt.key}
+                                onClick={() => handleBackendChange(opt.key)}
+                                className={clsx(
+                                    'flex flex-col items-start p-3 rounded-xl border text-left transition-all',
+                                    analyzerBackend === opt.key
+                                        ? opt.color === 'amber' ? 'bg-amber-400/15 border-amber-400/50 ring-1 ring-amber-400/30'
+                                        : opt.color === 'violet' ? 'bg-violet-500/15 border-violet-500/50 ring-1 ring-violet-500/30'
+                                        : 'bg-sky-500/15 border-sky-500/50 ring-1 ring-sky-500/30'
+                                        : 'bg-obsidian border-[#333] hover:border-[#444]',
+                                )}>
+                                <div className={clsx('flex items-center gap-1.5 text-xs font-bold mb-1',
+                                    analyzerBackend === opt.key
+                                        ? opt.color === 'amber' ? 'text-amber-300' : opt.color === 'violet' ? 'text-violet-300' : 'text-sky-300'
+                                        : 'text-zinc-400'
+                                )}>
+                                    {opt.icon} {opt.label}
+                                </div>
+                                <span className="text-[9px] text-zinc-500 leading-tight">{opt.desc}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Claude API config */}
+                    {analyzerBackend === 'claude' && (
+                        <div className="space-y-2 mt-3">
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider mb-1">{tx('apiKeyLabel', lang)}</p>
+                                    <input type="password" value={claudeApiKey}
+                                        onChange={e => setClaudeApiKey(e.target.value)}
+                                        placeholder={tx('apiKeyPlaceholder', lang)}
+                                        className="w-full bg-obsidian border border-[#333] rounded-lg px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500" />
+                                </div>
+                                <div className="w-40">
+                                    <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider mb-1">Model</p>
+                                    <select value={claudeModel}
+                                        onChange={e => setClaudeModel(e.target.value)}
+                                        className="w-full bg-obsidian border border-[#333] rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-violet-500">
+                                        <option value="claude-opus-4-5">Opus 4.5</option>
+                                        <option value="claude-sonnet-4-20250514">Opus 4.6</option>
+                                        <option value="claude-haiku-4-20250514">Haiku 4</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Tekki API config */}
+                    {analyzerBackend === 'tekki' && (
+                        <div className="space-y-2 mt-3">
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider mb-1">{tx('apiKeyLabel', lang)}</p>
+                                    <input type="password" value={tekkiApiKey}
+                                        onChange={e => setTekkiApiKey(e.target.value)}
+                                        placeholder={tx('apiKeyPlaceholder', lang)}
+                                        className="w-full bg-obsidian border border-[#333] rounded-lg px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-sky-500" />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider mb-1">{tx('tekkiEndpoint', lang)}</p>
+                                    <input type="text" value={tekkiEndpoint}
+                                        onChange={e => setTekkiEndpoint(e.target.value)}
+                                        placeholder={tx('tekkiEndpointPlaceholder', lang)}
+                                        className="w-full bg-obsidian border border-[#333] rounded-lg px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-sky-500" />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Save button for cloud backends */}
+                    {(analyzerBackend === 'claude' || analyzerBackend === 'tekki') && (
+                        <button onClick={handleSaveApiKeys}
+                            className={clsx(
+                                'mt-3 flex items-center justify-center gap-2 w-full py-2 rounded-xl font-semibold transition-all text-xs',
+                                apiKeySaved
+                                    ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400'
+                                    : 'bg-violet-600 hover:bg-violet-700 text-white active:scale-95'
+                            )}>
+                            {apiKeySaved ? <><CheckCircle size={13} /> {tx('apiKeySaved', lang)}</> : <><Plus size={13} /> {tx('apiKeySave', lang)}</>}
+                        </button>
+                    )}
+                </div>
+
+                {/* ─── AI Model (Ollama only) ──────────────────────────────── */}
                 <div className={`${card} md:col-span-2`}>
                     <div className="flex items-center gap-2">
                         <Zap size={18} className="text-amber-400" />

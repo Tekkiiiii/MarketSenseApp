@@ -131,11 +131,19 @@ pub async fn scout_source(client: &Client, source: &SourceConfig, db_path: &Path
             title: item.title.clone(),
             url: item.url.clone(),
             source: source.name.to_string(),
-            impact: "NEUTRAL".to_string(),  // will be updated by Analyst Agent later
+            impact: "NEUTRAL".to_string(),
             summary: summary.chars().take(500).collect(),
             entities: "[]".to_string(),
             recommendation: String::new(),
             scraped_at: None,
+            // New fields for analyst v2
+            content: String::new(),          // fetched lazily by analyst
+            analysis_status: "pending".to_string(),
+            confidence: None,
+            key_price_factors: "[]".to_string(),
+            risk_level: None,
+            sectors: None,
+            tickers: None,
         };
 
         if insert_article(db_path, &article).is_ok() {

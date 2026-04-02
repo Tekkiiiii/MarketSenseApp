@@ -7,6 +7,7 @@ import SourceManager from './components/Settings/SourceManager';
 import ScoutSettings from './components/Settings/ScoutSettings';
 import SetupWizard from './components/Setup/SetupWizard';
 import { db } from './lib/db';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 
 import { createContext, useContext } from 'react';
 
@@ -47,25 +48,42 @@ function App() {
   const [lang, setLang] = useState<Lang>('vi');
   const [setupDone, setSetupDone] = useState<boolean | null>(null); // null = checking
 
-  // Check if first-run setup has been completed
+  // Load persisted settings from SQLite on mount
   useEffect(() => {
     db.getSetting('setup_complete')
       .then(val => setSetupDone(val === '1'))
-      .catch(() => setSetupDone(true)); // fallback: skip wizard in browser preview
+      .catch(() => setSetupDone(true));
+    db.getSetting('language')
+      .then(val => { if (val === 'en' || val === 'vi') setLang(val); })
+      .catch(() => {});
   }, []);
 
   const handleSetupComplete = (chosenLang: Lang) => {
     setLang(chosenLang);
+    db.setSetting('language', chosenLang).catch(() => {});
     setSetupDone(true);
   };
 
-  const handleScoutNow = () => {
+  const handleScoutNow = async () => {
     setIsScouting(true);
-    setTimeout(() => {
-      setIsScouting(false);
+    try {
+      await db.scoutNow([]);
       setLastScouted(new Date().toLocaleTimeString());
-    }, 3000);
+    } catch {
+      // silently ignore — scout loop will retry
+    }
   };
+
+  // Keep sidebar in sync with any scout (manual or background loop)
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined;
+    listen('scout-started', () => { setIsScouting(true); }).then(fn => { unlisten = fn; }).catch(() => {});
+    listen<number>('articles-updated', () => { setIsScouting(false); }).then(fn => {
+      const prev = unlisten;
+      unlisten = () => { prev?.(); fn(); };
+    }).catch(() => {});
+    return () => { unlisten?.(); };
+  }, []);
 
   const bgMain = theme === 'dark' ? 'bg-obsidian' : 'bg-zinc-100';
   const bgSidebar = theme === 'dark' ? 'bg-charcoal border-[#222]' : 'bg-white border-zinc-200';

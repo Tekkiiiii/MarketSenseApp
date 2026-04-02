@@ -1,10 +1,15 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { AlertCircle, TrendingUp, TrendingDown, Minus, Clock, ExternalLink, Bot, ChevronUp, ChevronDown, ChevronsUpDown, Search, X, RefreshCw } from 'lucide-react';
+import {
+    AlertCircle, TrendingUp, TrendingDown, Minus, Clock, ExternalLink,
+    Bot, RefreshCw, AlertTriangle, Loader2, RotateCcw
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { listen } from '@tauri-apps/api/event';
 import { useAppContext } from '../../App';
 import { db, Article } from '../../lib/db';
+
+// ─── Types ──────────────────────────────────────────────────────────────────────
 
 type NewsItem = {
     id: string;
@@ -15,126 +20,54 @@ type NewsItem = {
     impact: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
     what: string;
     who: string[];
-    how: {
-        reasoning: string;
-    };
+    how: { reasoning: string };
     recommendation: string;
     unread: boolean;
+    analysisStatus?: string;   // 'pending' | 'analyzing' | 'done' | 'error'
+    confidence?: number;
+    keyPriceFactors?: string[];
+    riskLevel?: string;
+    tickers?: string[];
+    scrapedAt?: string;
 };
-
-const INITIAL_NEWS: NewsItem[] = [
-    {
-        id: "news-1",
-        title: "Ông Nguyễn Duy Hưng lên tiếng giữa bão bán tháo vì giá dầu, SSI Research gọi tên danh mục cổ phiếu vượt sóng",
-        url: "https://cafef.vn/thi-truong-chung-khoan/ong-nguyen-duy-hung-len-tieng-giua-bao-ban-thao-vi-gia-dau-ssi-research-goi-ten-danh-muc-co-phieu-vuot-song-20250310094512.chn",
-        source: "CafeF",
-        time: "10 phút trước",
-        impact: "BULLISH",
-        what: "Chủ tịch SSI nhận định về tình hình thị trường và ảnh hưởng của giá dầu, đồng thời SSI Research đưa ra danh sách các cổ phiếu tiềm năng.",
-        who: ["SSI", "HPG", "FPT", "Chứng Khoán", "Thép"],
-        how: {
-            reasoning: "Củng cố niềm tin nhà đầu tư trong lúc hoảng loạn, chỉ ra nhóm cổ phiếu ít chịu rủi ro vĩ mô."
-        },
-        recommendation: "Tập trung tích lũy HPG và FPT khi thị trường bán tháo rộng. Tránh cổ phiếu năng lượng đầu cơ cho đến khi giá dầu ổn định.",
-        unread: false
-    },
-    {
-        id: "news-2",
-        title: "Ngân hàng Nhà nước hút ròng gần 40.000 tỷ đồng, tỷ giá trung tâm tiếp tục hạ nhiệt",
-        url: "https://vietstock.vn/2025/03/ngan-hang-nha-nuoc-hut-rong-gan-40000-ty-dong-ty-gia-trung-tam-tiep-tuc-ha-nhiet-737-1234567.htm",
-        source: "Vietstock",
-        time: "1 giờ trước",
-        impact: "NEUTRAL",
-        what: "NHNN có động thái can thiệp thị trường mở để ổn định tỷ giá.",
-        who: ["VCB", "Ngân hàng"],
-        how: {
-            reasoning: "Hành động điều hành chính sách tiền tệ thường kỳ, giúp ổn định vĩ mô, tác động trung tính lên nhóm tài chính."
-        },
-        recommendation: "Duy trì tỷ trọng hiện tại trong nhóm ngân hàng. Theo dõi VCB để tìm dấu hiệu dẫn dắt phục hồi.",
-        unread: true
-    },
-    {
-        id: "news-3",
-        title: "Chủ tịch Vinhomes: Đang nghiên cứu phát hành thêm trái phiếu doanh nghiệp nửa cuối năm",
-        url: "https://vneconomy.vn/chu-tich-vinhomes-dang-nghien-cuu-phat-hanh-them-trai-phieu-doanh-nghiep-nua-cuoi-nam.htm",
-        source: "VnEconomy",
-        time: "2 giờ trước",
-        impact: "BULLISH",
-        what: "VHM lên kế hoạch huy động dòng vốn mới để phát triển các đại dự án.",
-        who: ["VHM", "Bất Động Sản"],
-        how: {
-            reasoning: "Giải quyết vấn đề khát vốn, mở đường cho việc triển khai các siêu dự án đang đắp chiếu."
-        },
-        recommendation: "Cân nhắc giao dịch ngắn hạn VHM. Tâm lý tích cực có thể lan tỏa sang DXG và NLG.",
-        unread: true
-    },
-    {
-        id: "news-4",
-        title: "Doanh nghiệp thủy sản báo lỗ kỷ lục trong quý 3 do chi phí logistics đội vọt",
-        url: "https://cafef.vn/doanh-nghiep/doanh-nghiep-thuy-san-bao-lo-ky-luc-quy-3-vi-chi-phi-logistics-doi-vot-20250310085500.chn",
-        source: "CafeF",
-        time: "3 giờ trước",
-        impact: "BEARISH",
-        what: "Nhiều công ty thủy sản gặp khó khăn nghiêm trọng về biên lợi nhuận do chi phí vận tải biển tăng mạnh.",
-        who: ["VHC", "FMC", "Thủy Sản"],
-        how: {
-            reasoning: "Chi phí logistics ăn mòn phần lớn lợi nhuận gộp. Ngành thủy sản đối mặt thách thức lớn trong ngắn hạn."
-        },
-        recommendation: "Giảm tỷ trọng nhóm xuất khẩu thủy sản. Chờ cước vận tải biển hạ nhiệt trước khi mua lại VHC.",
-        unread: false
-    },
-    {
-        id: "news-5",
-        title: "Khối ngoại đẩy mạnh mua ròng phiên thứ 5 liên tiếp, tập trung gom cổ phiếu công nghệ",
-        url: "https://vietstock.vn/2025/03/khoi-ngoai-mua-rong-phien-thu-5-lien-tiep-tap-trung-gom-co-phieu-cong-nghe-737-7654321.htm",
-        source: "Vietstock",
-        time: "4 giờ trước",
-        impact: "BULLISH",
-        what: "Dòng vốn nước ngoài tích cực giải ngân vào thị trường chứng khoán Việt Nam, đặc biệt săn đón cổ phiếu công nghệ thông tin.",
-        who: ["FPT", "CMG", "Công Nghệ"],
-        how: {
-            reasoning: "Dòng tiền thông minh nước ngoài đánh giá cao tiềm năng dài hạn của ngành công nghệ Việt Nam so với định giá."
-        },
-        recommendation: "Tăng tỷ trọng FPT. Tích lũy dài hạn CMG cho danh mục tăng trưởng.",
-        unread: true
-    }
-];
 
 type SortKey = 'time' | 'impact' | 'source' | 'title';
 type SortDir = 'asc' | 'desc';
 type ImpactFilter = 'ALL' | 'BULLISH' | 'BEARISH' | 'NEUTRAL';
 
-// ─── i18n for AlertFeed ───────────────────────────────────────────────────────
+// ─── i18n ──────────────────────────────────────────────────────────────────────
 type Lang = 'en' | 'vi';
 const T: Record<string, Record<Lang, string>> = {
-    bulletin:    { en: 'Market Bulletin', vi: 'Bản Tin Thị Trường' },
-    hotReport:   { en: 'HOT / LATEST REPORT', vi: 'TIN NÓNG / MỚI NHẤT' },
-    theWhat:     { en: 'The "What"', vi: 'Sự Kiện' },
-    entities:    { en: 'Involved Entities', vi: 'Đối Tượng Liên Quan' },
-    verdict:     { en: 'AI Impact Verdict', vi: 'Nhận Định AI' },
-    reasoning:   { en: 'Analyst Reasoning', vi: 'Lý Luận Phân Tích' },
-    reco:        { en: 'AI Recommendation', vi: 'Khuyến Nghị AI' },
-    readOriginal:{ en: 'Read original on', vi: 'Đọc bài gốc trên' },
-    earlierToday:{ en: 'Earlier Today', vi: 'Trước Đó Hôm Nay' },
-    allNews:     { en: 'All News Today', vi: 'Tất Cả Tin Hôm Nay' },
-    time:        { en: 'Time', vi: 'Thời Gian' },
-    impact:      { en: 'Impact', vi: 'Tác Động' },
-    source:      { en: 'Source', vi: 'Nguồn' },
-    headline:    { en: 'Headline', vi: 'Tiêu Đề' },
-    search:      { en: 'Search headline, ticker, source...', vi: 'Tìm tiêu đề, mã CK, nguồn...' },
-    noResults:   { en: 'No results match your filter.', vi: 'Không có kết quả phù hợp.' },
-    all:         { en: 'All', vi: 'Tất cả' },
-    bull:        { en: '↑ Bull', vi: '↑ Tăng' },
-    bear:        { en: '↓ Bear', vi: '↓ Giảm' },
-    neutral:     { en: '– Neutral', vi: '– Trung lập' },
-    brokerTitle: { en: '🏦 Broker Recommendations', vi: '🏦 Khuyến Nghị Công Ty Chứng Khoán' },
-    brokerSub:   { en: 'Latest analyst picks from securities firms', vi: 'Khuyến nghị mới nhất từ các công ty chứng khoán' },
-    readMore:    { en: 'Read', vi: 'Xem' },
+    bulletin:      { en: 'Market Bulletin',             vi: 'Bản Tin Thị Trường' },
+    hotReport:     { en: 'HOT / LATEST REPORT',         vi: 'TIN NÓNG / MỚI NHẤT' },
+    theWhat:       { en: 'The "What"',                  vi: 'Sự Kiện' },
+    entities:      { en: 'Involved Entities',           vi: 'Đối Tượng Liên Quan' },
+    verdict:       { en: 'AI Impact Verdict',           vi: 'Nhận Định AI' },
+    reasoning:     { en: 'Analyst Reasoning',           vi: 'Lý Luận Phân Tích' },
+    reco:          { en: 'AI Recommendation',           vi: 'Khuyến Nghị AI' },
+    readOriginal:  { en: 'Read original on',            vi: 'Đọc bài gốc trên' },
+    allNews:       { en: 'All Articles',                 vi: 'Tất Cả Tin' },
+    analyzing:     { en: 'Analyzing…',                  vi: 'Đang phân tích…' },
+    analysisError: { en: 'Analysis failed',             vi: 'Phân tích thất bại' },
+    retryAnalysis: { en: 'Retry',                       vi: 'Thử lại' },
+    brokerTitle:  { en: 'Broker Reports',               vi: 'Khuyến Nghị CTCK' },
+    brokerEmpty:  { en: 'No broker reports yet',       vi: 'Chưa có khuyến nghị CTCK' },
+    readMore:     { en: 'Read →',                       vi: 'Xem →' },
+    noArticles:   { en: 'No articles yet',              vi: 'Chưa có bài viết nào' },
+    scoutFirst:   { en: 'Run Scout Now to fetch news',  vi: 'Nhấn Quét Ngay để lấy tin' },
+    noSelection:  { en: 'Select an article',            vi: 'Chọn một bài viết' },
+    confidence:   { en: 'Confidence',                  vi: 'Độ tin' },
+    riskLevel:    { en: 'Risk Level',                   vi: 'Mức Rủi Ro' },
+    sectors:      { en: 'Sectors',                      vi: 'Ngành' },
+    priceFactors: { en: 'Key Price Factors',            vi: 'Yếu Tố Giá' },
+    watchlist:    { en: 'Watchlist',                    vi: 'Theo Dõi' },
 };
 const tx = (key: string, lang: Lang) => T[key]?.[lang] ?? key;
 
-// ─── Time-ago helper ─────────────────────────────────────────────────────────
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
 function timeAgo(isoStr: string): string {
+    if (!isoStr) return '—';
     const diff = Date.now() - new Date(isoStr).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return '< 1 phút trước';
@@ -144,84 +77,147 @@ function timeAgo(isoStr: string): string {
     return `${Math.floor(hrs / 24)} ngày trước`;
 }
 
+function impactGradient(impact: string) {
+    if (impact === 'BULLISH') return 'from-emerald-500 to-emerald-300';
+    if (impact === 'BEARISH') return 'from-blood to-blaze';
+    return 'from-zinc-500 to-zinc-400';
+}
+
+function impactColor(impact: string) {
+    if (impact === 'BULLISH') return 'text-emerald-400';
+    if (impact === 'BEARISH') return 'text-blood';
+    return 'text-zinc-400';
+}
+
+function riskColor(level?: string) {
+    if (level === 'HIGH')   return 'text-red-400';
+    if (level === 'MEDIUM') return 'text-amber-400';
+    if (level === 'LOW')    return 'text-emerald-400';
+    return 'text-zinc-400';
+}
+
+// ─── Article → NewsItem converter ──────────────────────────────────────────────
+function articleToNewsItem(a: Article): NewsItem {
+    let who: string[] = [];
+    try { who = JSON.parse(a.entities || '[]'); } catch { /* ok */ }
+
+    return {
+        id:              String(a.id ?? a.url),
+        title:           a.title,
+        url:             a.url,
+        source:          a.source,
+        time:            a.scraped_at ? timeAgo(a.scraped_at) : '—',
+        impact:          (a.impact || 'NEUTRAL') as 'BULLISH' | 'BEARISH' | 'NEUTRAL',
+        what:            a.summary || a.title,
+        who,
+        how:             { reasoning: a.recommendation || a.summary || '' },
+        recommendation:  a.recommendation,
+        unread:          true,
+        analysisStatus:  a.analysis_status,
+        confidence:      a.confidence,
+        keyPriceFactors: (() => {
+            try { return JSON.parse(a.key_price_factors || '[]'); } catch { return []; }
+        })(),
+        riskLevel:       a.risk_level,
+        scrapedAt:       a.scraped_at,
+        tickers:         (() => {
+            try { return JSON.parse(a.tickers || '[]'); } catch { return []; }
+        })(),
+    };
+}
+
+// ─── Broker keyword filter ─────────────────────────────────────────────────────
+const BROKER_KW = [
+    'khuyến nghị', 'khuyến nghị mua', 'khuyến nghị bán',
+    'research', 'analyst', 'securities firm',
+    'công ty chứng khoán', 'ctck', 'vnds', 'bsc', 'fps',
+];
+
+function isBrokerArticle(item: NewsItem): boolean {
+    const hay = (item.title + ' ' + item.what).toLowerCase();
+    return BROKER_KW.some(kw => hay.includes(kw));
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
 export default function AlertFeed() {
     const { lang } = useAppContext() as { lang: Lang };
-    const [news, setNews] = useState<NewsItem[]>(INITIAL_NEWS);
-    const [activeId, setActiveId] = useState<string>(INITIAL_NEWS[0]?.id ?? '');
-    const [sortKey, setSortKey] = useState<SortKey>('time');
-    const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    const [allArticles, setAllArticles] = useState<NewsItem[]>([]);
+    const [activeId, setActiveId]       = useState<string>('');
+    const [isRefreshing, setRefreshing] = useState(false);
     const [impactFilter, setImpactFilter] = useState<ImpactFilter>('ALL');
-    const [searchQuery, setSearchQuery] = useState('');
-    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [sortKey, setSortKey]         = useState<SortKey>('time');
+    const [sortDir, setSortDir]         = useState<SortDir>('desc');
 
-    // ── Convert a DB Article → NewsItem ──────────────────────────────────────
-    const articleToNewsItem = (a: Article): NewsItem => ({
-        id: String(a.id ?? a.url),
-        title: a.title,
-        url: a.url,
-        source: a.source,
-        time: a.scraped_at ? timeAgo(a.scraped_at) : '—',
-        impact: a.impact as 'BULLISH' | 'BEARISH' | 'NEUTRAL',
-        what: a.summary || a.title,
-        who: (() => { try { return JSON.parse(a.entities); } catch { return []; } })(),
-        how: { reasoning: a.recommendation || a.summary },
-        recommendation: a.recommendation,
-        unread: true,
-    });
-
-    // ── Load articles from SQLite ─────────────────────────────────────────────
+    // ── Load from SQLite ─────────────────────────────────────────────────────
     const loadArticles = useCallback(async () => {
+        setRefreshing(true);
         try {
-            const articles = await db.getArticles(100);
+            // Use getArticles to include all statuses (done + analyzing + error)
+            const articles = await db.getArticles(200);
             if (articles.length > 0) {
                 const items = articles.map(articleToNewsItem);
-                setNews(items);
-                setActiveId(prev => items.some(i => i.id === prev) ? prev : items[0].id);
+                setAllArticles(items);
+                // Auto-select first article if nothing selected
+                setActiveId(prev => {
+                    if (prev && items.some(i => i.id === prev)) return prev;
+                    return items[0]?.id ?? '';
+                });
             }
         } catch {
-            // Not in Tauri context (browser preview) — keep mock data
+            // Browser preview — keep mock data from INITIAL_NEWS
         }
-        setIsRefreshing(false);
+        setRefreshing(false);
     }, []);
 
-    // ── Initial load + listen for scout updates ───────────────────────────────
     useEffect(() => {
         loadArticles();
         let unlisten: (() => void) | undefined;
-        listen<number>('articles-updated', () => {
-            setIsRefreshing(true);
-            loadArticles();
-        }).then(fn => { unlisten = fn; }).catch(() => { });
+        listen<number>('articles-updated', () => loadArticles())
+            .then(fn => { unlisten = fn; }).catch(() => {});
         return () => { unlisten?.(); };
     }, [loadArticles]);
 
-    const handleSelect = (id: string) => {
-        if (id !== activeId) {
-            setActiveId(id);
-            setNews(prev => prev.map(n => n.id === id ? { ...n, unread: false } : n));
-        }
-    };
 
-    const handleSort = (key: SortKey) => {
-        if (sortKey === key) {
-            setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-        } else {
-            setSortKey(key);
-            setSortDir('asc');
-        }
-    };
+    // ── Derived ──────────────────────────────────────────────────────────────
+    const handleSelect = useCallback((id: string) => {
+        setActiveId(prev => {
+            if (prev === id) return prev;
+            // Mark selected article as read
+            setAllArticles(items => items.map(it =>
+                it.id === id ? { ...it, unread: false } : it
+            ));
+            return id;
+        });
+    }, []);
 
-    const filteredNews = useMemo(() => {
-        let items = [...news];
-        if (impactFilter !== 'ALL') items = items.filter(n => n.impact === impactFilter);
-        if (searchQuery.trim()) {
-            const q = searchQuery.trim().toLowerCase();
-            items = items.filter(n =>
-                n.title.toLowerCase().includes(q) ||
-                n.what.toLowerCase().includes(q) ||
-                n.source.toLowerCase().includes(q) ||
-                n.who.some(w => w.toLowerCase().includes(q))
-            );
+    const handleRetry = useCallback(async (id: number) => {
+        try {
+            await db.retryAnalysis(id);
+            // Optimistically update status to 'pending'
+            setAllArticles(items => items.map(it =>
+                String(it.id) === String(id) ? { ...it, analysisStatus: 'pending' } : it
+            ));
+        } catch { /* silent — backend will handle */ }
+    }, []);
+
+    // Separate articles by analysis status
+    const analyzingArticles = useMemo(() =>
+        allArticles.filter(a => a.analysisStatus === 'analyzing'), [allArticles]);
+
+    const errorArticles = useMemo(() =>
+        allArticles.filter(a => a.analysisStatus === 'error'), [allArticles]);
+
+    // All "done" articles for main list and broker panel
+    const doneArticles = useMemo(() =>
+        allArticles.filter(a => a.analysisStatus !== 'analyzing' && a.analysisStatus !== 'error' && a.analysisStatus !== 'pending'), [allArticles]);
+
+    // Apply filter + sort
+    const filteredArticles = useMemo(() => {
+        let items = [...doneArticles];
+        if (impactFilter !== 'ALL') {
+            items = items.filter(a => a.impact === impactFilter);
         }
         const impactOrder = { BULLISH: 0, NEUTRAL: 1, BEARISH: 2 };
         items.sort((a, b) => {
@@ -229,333 +225,377 @@ export default function AlertFeed() {
             if (sortKey === 'impact') cmp = impactOrder[a.impact] - impactOrder[b.impact];
             else if (sortKey === 'source') cmp = a.source.localeCompare(b.source);
             else if (sortKey === 'title') cmp = a.title.localeCompare(b.title);
-            else cmp = a.time.localeCompare(b.time);
+            else {
+                // time: parse ISO for real sort
+                const ta = a.scrapedAt ? new Date(a.scrapedAt).getTime() : 0;
+                const tb = b.scrapedAt ? new Date(b.scrapedAt).getTime() : 0;
+                cmp = tb - ta;
+            }
             return sortDir === 'desc' ? -cmp : cmp;
         });
         return items;
-    }, [news, impactFilter, searchQuery, sortKey, sortDir]);
+    }, [doneArticles, impactFilter, sortKey, sortDir]);
 
-    // ── Broker recommendation articles ──────────────────────────────────────────
-    const BROKER_KW = ['khuyến nghị', 'khuyến nghị mua', 'khuyến nghị bán', 'research', 'analyst', 'securities firm', 'công ty chứng khoán', 'ctck'];
+    // ── Keyboard navigation ─────────────────────────────────────────────────
+    useEffect(() => {
+        function onKey(e: KeyboardEvent) {
+            const tag = (e.target as HTMLElement)?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+            const idx = filteredArticles.findIndex(a => a.id === activeId);
+            if (e.key === 'j' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                const next = filteredArticles[idx + 1];
+                if (next) setActiveId(next.id);
+            } else if (e.key === 'k' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prev = filteredArticles[idx - 1];
+                if (prev) setActiveId(prev.id);
+            } else if (e.key === 'Escape') {
+                setActiveId('');
+            }
+        }
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [activeId, filteredArticles]);
+
     const brokerRecs = useMemo(() =>
-        news.filter(n => {
-            const hay = (n.title + ' ' + n.what).toLowerCase();
-            return BROKER_KW.some(kw => hay.includes(kw));
-        }).slice(0, 8)
-    , [news]);
+        doneArticles.filter(isBrokerArticle).slice(0, 10), [doneArticles]);
 
-    const getImpactColor = (impact: string) => {
-        if (impact === 'BULLISH') return 'text-emerald-400';
-        if (impact === 'BEARISH') return 'text-blood';
-        return 'text-zinc-400';
+    const activeArticle = useMemo(() =>
+        allArticles.find(a => a.id === activeId), [allArticles, activeId]);
+
+    const handleSort = (key: SortKey) => {
+        if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        else { setSortKey(key); setSortDir('asc'); }
     };
 
-    const getImpactGradient = (impact: string) => {
-        if (impact === 'BULLISH') return 'from-emerald-500 to-emerald-300';
-        if (impact === 'BEARISH') return 'from-blood to-blaze';
-        return 'from-zinc-500 to-zinc-400';
-    };
-
+    // ── Render ───────────────────────────────────────────────────────────────
     return (
         <div className="h-full flex flex-col pt-1 pb-4">
-            <div className="flex items-center justify-between mb-4 shrink-0">
+
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3 shrink-0">
                 <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
                     {tx('bulletin', lang)}
                     {isRefreshing && <RefreshCw size={16} className="text-zinc-500 animate-spin" />}
                 </h2>
-            </div>
-
-            {/* Top Section - Hot News and Earlier Today */}
-            <div className="h-[55%] shrink-0 min-h-[400px] grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
-                {/* Hot News Panel - Left Side (2/3 width) */}
-                <div className="col-span-1 lg:col-span-2 relative">
-                    <AnimatePresence>
-                        {news.map((item) => {
-                            if (item.id !== activeId) return null;
-                            return (
-                                <motion.div
-                                    layoutId={`card-${item.id}`}
-                                    key={item.id}
-                                    className="h-full bg-charcoal rounded-xl border border-[#222] shadow-[0_0_30px_rgba(225,29,72,0.05)] flex flex-col overflow-hidden w-full absolute inset-0 z-20 origin-top-left"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                                >
-                                    <div className={`h-2 w-full bg-gradient-to-r ${getImpactGradient(item.impact)} shrink-0`}></div>
-
-                                    <div className="p-8 flex-1 flex flex-col overflow-y-auto custom-scrollbar">
-                                        <motion.div layoutId={`header-${item.id}`} className="flex items-center justify-between mb-4 shrink-0">
-                                            <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white">
-                                                <AlertCircle size={16} className={getImpactColor(item.impact)} />
-                                                {tx('hotReport', lang)}
-                                            </span>
-                                            <span className="text-sm text-zinc-400 flex items-center gap-1">
-                                                <Clock size={14} /> {item.time}
-                                            </span>
-                                        </motion.div>
-
-                                        <motion.h3 layoutId={`title-${item.id}`} className="text-3xl font-bold text-white leading-tight mb-6 shrink-0">
-                                            {item.title}
-                                        </motion.h3>
-
-                                        <div className="space-y-6 flex-1 text-sm bg-obsidian p-6 rounded-lg border border-[#222] shrink-0">
-                                            <div>
-                                                <h4 className="text-zinc-500 font-semibold mb-1 uppercase text-xs tracking-wider">{tx('theWhat', lang)}</h4>
-                                                <motion.p layoutId={`content-${item.id}`} className="text-zinc-200 text-base">{item.what}</motion.p>
-                                            </div>
-
-                                            <div className="flex gap-4">
-                                                <div className="flex-1">
-                                                    <h4 className="text-zinc-500 font-semibold mb-2 uppercase text-xs tracking-wider">{tx('entities', lang)}</h4>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {item.who.map(t => (
-                                                            <span key={t} className="px-2.5 py-1 bg-[#1a1a1a] text-zinc-300 rounded font-medium border border-[#333]">
-                                                                {t}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex-1">
-                                                    <h4 className="text-zinc-500 font-semibold mb-2 uppercase text-xs tracking-wider">{tx('verdict', lang)}</h4>
-                                                    <div className={`flex items-center gap-3 font-bold px-4 py-3 rounded-lg border bg-[#1a1a1a] ${item.impact === 'BULLISH' ? 'border-emerald-500/20 text-emerald-400' : item.impact === 'BEARISH' ? 'border-blood/20 text-blood' : 'border-[#333] text-zinc-400'}`}>
-                                                        {item.impact === 'BULLISH' && <TrendingUp size={24} />}
-                                                        {item.impact === 'BEARISH' && <TrendingDown size={24} />}
-                                                        {item.impact === 'NEUTRAL' && <Minus size={24} />}
-                                                        <span className="text-lg">{item.impact}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <h4 className="text-zinc-500 font-semibold mb-1 uppercase text-xs tracking-wider">{tx('reasoning', lang)}</h4>
-                                                <p className="text-zinc-300 italic">"{item.how.reasoning}"</p>
-                                            </div>
-
-                                            <div className="pt-4 border-t border-[#333]">
-                                                <h4 className="text-blaze font-bold mb-2 flex items-center gap-2 uppercase text-xs tracking-wider">
-                                                    <Bot size={16} /> {tx('reco', lang)}
-                                                </h4>
-                                                <p className="text-zinc-200">{item.recommendation}</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-6 flex justify-end shrink-0">
-                                            <button onClick={() => openUrl(item.url)} className="flex items-center gap-2 text-sm font-medium text-blue-400 hover:text-blue-300 transition w-fit focus:outline-none">
-                                                {tx('readOriginal', lang)} {item.source} <ExternalLink size={14} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            );
-                        })}
-                    </AnimatePresence>
-                </div>
-
-                {/* Older / Smaller News List - Right Side (1/3 width) */}
-                <div className="flex flex-col h-full overflow-hidden">
-                    <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-widest bg-obsidian pb-3 z-10 shrink-0">{tx('earlierToday', lang)}</h3>
-
-                    <div className="flex-1 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
-                        <AnimatePresence>
-                            {news.map((item) => {
-                                if (item.id === activeId) return null;
-                                return (
-                                    <motion.div
-                                        layoutId={`card-${item.id}`}
-                                        key={item.id}
-                                        onClick={() => handleSelect(item.id)}
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                                        className="bg-charcoal p-4 rounded-lg border border-[#222] hover:border-blood/50 transition-colors cursor-pointer group relative shrink-0 z-10 flex flex-col"
-                                    >
-                                        {item.unread && (
-                                            <div className="absolute top-[-4px] right-[-4px] w-3.5 h-3.5 bg-blood rounded-full border-[2.5px] border-obsidian z-10"></div>
-                                        )}
-
-                                        <motion.div layoutId={`header-${item.id}`} className="flex justify-between items-start mb-2">
-                                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-bold bg-obsidian border border-[#333]">
-                                                {item.impact === 'BULLISH' && <><TrendingUp size={12} className="text-emerald-400" /><span className="text-emerald-400">BULL</span></>}
-                                                {item.impact === 'BEARISH' && <><TrendingDown size={12} className="text-blood" /><span className="text-blood">BEAR</span></>}
-                                                {item.impact === 'NEUTRAL' && <><Minus size={12} className="text-zinc-400" /><span className="text-zinc-400">NEUT</span></>}
-                                            </div>
-                                            <span className="text-xs text-zinc-500">{item.time}</span>
-                                        </motion.div>
-
-                                        <motion.h4 layoutId={`title-${item.id}`} className="font-semibold text-sm text-zinc-200 mb-2 group-hover:text-blaze transition-colors line-clamp-2">
-                                            {item.title}
-                                        </motion.h4>
-
-                                        <motion.p layoutId={`content-${item.id}`} className="text-xs text-zinc-400 line-clamp-2 mb-2 min-h-0 relative">
-                                            {item.what}
-                                        </motion.p>
-
-                                        <div className="flex flex-wrap gap-1 mt-auto">
-                                            {item.who.map(w => (
-                                                <span key={w} className="text-[10px] bg-[#333] text-zinc-300 px-1.5 py-0.5 rounded">
-                                                    {w}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </motion.div>
-                                );
-                            })}
-                        </AnimatePresence>
-                    </div>
-                </div>
-            </div>
-
-            {/* ── Broker Recommendations Strip ─────────────────────────────── */}
-            {brokerRecs.length > 0 && (
-                <div className="mt-6 shrink-0">
-                    <div className="flex items-center gap-2 mb-3">
-                        <h3 className="text-sm font-bold text-white">{tx('brokerTitle', lang)}</h3>
-                        <span className="text-[10px] text-amber-400/70 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">{brokerRecs.length}</span>
-                        <span className="text-xs text-zinc-500 ml-1">{tx('brokerSub', lang)}</span>
-                    </div>
-
-                    <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
-                        {brokerRecs.map(item => (
-                            <div
-                                key={`br-${item.id}`}
-                                className="flex-shrink-0 w-64 bg-charcoal border border-amber-400/20 rounded-xl p-4 hover:border-amber-400/40 transition-colors cursor-pointer group"
-                                onClick={() => handleSelect(item.id)}
-                            >
-                                {/* Source + time */}
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">{item.source}</span>
-                                    <span className="text-[10px] text-zinc-500">{item.time}</span>
-                                </div>
-
-                                {/* Title */}
-                                <p className="text-xs font-semibold text-zinc-200 line-clamp-3 mb-3 group-hover:text-amber-300 transition-colors leading-relaxed">
-                                    {item.title}
-                                </p>
-
-                                {/* Summary snippet */}
-                                {item.what && (
-                                    <p className="text-[10px] text-zinc-500 line-clamp-2 mb-3 leading-relaxed">
-                                        {item.what}
-                                    </p>
-                                )}
-
-                                {/* Read link */}
-                                <button
-                                    onClick={e => { e.stopPropagation(); openUrl(item.url); }}
-                                    className="flex items-center gap-1 text-[10px] text-amber-400/70 hover:text-amber-400 transition-colors font-medium"
-                                >
-                                    {tx('readMore', lang)} <ExternalLink size={10} />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Bottom Section - All News Today Table */}
-            <div className="mt-6 flex-1 bg-charcoal rounded-xl border border-[#222] flex flex-col min-h-0 overflow-hidden">
-                {/* Table Toolbar */}
-                <div className="p-4 border-b border-[#222] flex items-center gap-3 shrink-0 flex-wrap">
-                    <h3 className="text-sm font-semibold text-white shrink-0">{tx('allNews', lang)}</h3>
-                    <span className="bg-obsidian px-2 py-0.5 rounded text-xs border border-[#333] text-zinc-400 shrink-0">{filteredNews.length} / {news.length}</span>
-
-                    <div className="flex items-center gap-1.5 ml-2 flex-wrap">
-                        {(['ALL', 'BULLISH', 'BEARISH', 'NEUTRAL'] as ImpactFilter[]).map(f => (
-                            <button key={f} onClick={() => setImpactFilter(f)}
-                                className={`text-[10px] font-bold px-2.5 py-1 rounded border transition-colors ${impactFilter === f
-                                    ? f === 'BULLISH' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                                        : f === 'BEARISH' ? 'bg-blood/20 border-blood/40 text-blood'
-                                            : f === 'NEUTRAL' ? 'bg-zinc-500/20 border-zinc-500/40 text-zinc-300'
-                                                : 'bg-zinc-700 border-zinc-600 text-white'
-                                    : 'bg-obsidian border-[#333] text-zinc-500 hover:border-zinc-500'
-                                    }`}>
-                                {f === 'ALL' ? tx('all', lang) : f === 'BULLISH' ? tx('bull', lang) : f === 'BEARISH' ? tx('bear', lang) : tx('neutral', lang)}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="ml-auto flex items-center gap-2 bg-obsidian border border-[#333] rounded-lg px-3 py-1.5 min-w-[200px]">
-                        <Search size={13} className="text-zinc-500 shrink-0" />
-                        <input
-                            type="text"
-                            placeholder={tx('search', lang)}
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            className="flex-1 bg-transparent text-xs text-white focus:outline-none placeholder:text-zinc-600"
-                        />
-                        {searchQuery && <button onClick={() => setSearchQuery('')} className="text-zinc-500 hover:text-zinc-300"><X size={12} /></button>}
-                    </div>
-                </div>
-
-                {/* Table Header */}
-                <div className="grid grid-cols-[90px_80px_90px_1fr_130px_36px] gap-2 px-4 py-2 border-b border-[#1a1a1a] shrink-0">
-                    {([
-                        { key: 'time', label: tx('time', lang) },
-                        { key: 'impact', label: tx('impact', lang) },
-                        { key: 'source', label: tx('source', lang) },
-                        { key: 'title', label: tx('headline', lang) },
-                    ] as { key: SortKey; label: string }[]).map(col => (
-                        <button key={col.key} onClick={() => handleSort(col.key)}
-                            className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors text-left">
-                            {col.label}
-                            {sortKey === col.key
-                                ? sortDir === 'asc' ? <ChevronUp size={11} className="text-blaze" /> : <ChevronDown size={11} className="text-blaze" />
-                                : <ChevronsUpDown size={11} className="opacity-30" />}
+                {/* Impact filter pills */}
+                <div className="flex gap-1">
+                    {(['ALL', 'BULLISH', 'BEARISH', 'NEUTRAL'] as ImpactFilter[]).map(f => (
+                        <button key={f} onClick={() => setImpactFilter(f)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border ${
+                                impactFilter === f
+                                    ? f === 'BULLISH' ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                                    : f === 'BEARISH'  ? 'bg-blood/20 border-blood/50 text-blood'
+                                    : f === 'NEUTRAL'  ? 'bg-zinc-700 border-zinc-500 text-zinc-300'
+                                    : 'bg-charcoal border-[#333] text-zinc-400'
+                                : 'bg-charcoal border-[#222] text-zinc-500 hover:border-[#444] hover:text-zinc-300'
+                            }`}>
+                            {f === 'ALL' ? tx('all', lang)
+                                : f === 'BULLISH' ? '↑ Tăng'
+                                : f === 'BEARISH'  ? '↓ Giảm'
+                                : '– Trung'}
                         </button>
                     ))}
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Entities</div>
-                    <div />
                 </div>
+            </div>
 
-                {/* Table Rows */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar">
-                    {filteredNews.length === 0 ? (
-                        <div className="flex items-center justify-center h-24 text-zinc-600 text-sm">No results match your filter.</div>
-                    ) : filteredNews.map(item => (
-                        <div key={`all-${item.id}`}
-                            onClick={() => handleSelect(item.id)}
-                            className={`grid grid-cols-[90px_80px_90px_1fr_130px_36px] gap-2 px-4 py-2.5 border-b border-[#1a1a1a] cursor-pointer group transition-colors hover:bg-obsidian ${item.id === activeId ? 'bg-blood/5 border-l-2 border-l-blood pl-3' : ''
-                                }`}>
+            {/* 3-column grid */}
+            <div className="flex-1 grid grid-cols-[280px_1fr_300px] gap-3 min-h-0">
 
-                            {/* Time */}
-                            <span className="text-xs text-zinc-500 tabular-nums self-center">{item.time}</span>
+                {/* ── Col 1: Article List ───────────────────────────────── */}
+                <div className="flex flex-col min-h-0 overflow-hidden bg-charcoal rounded-xl border border-[#222]">
+                    {/* Column header */}
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-[#222] shrink-0">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                            {tx('allNews', lang)}
+                        </span>
+                        <span className="text-[10px] text-zinc-600 tabular-nums">{filteredArticles.length}</span>
+                    </div>
 
-                            {/* Impact */}
-                            <div className={`text-[10px] font-bold px-2 py-1 rounded border flex items-center gap-1 self-center w-fit ${item.impact === 'BULLISH' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                                : item.impact === 'BEARISH' ? 'bg-blood/10 border-blood/20 text-blood'
-                                    : 'bg-zinc-500/10 border-[#333] text-zinc-400'}`}>
-                                {item.impact === 'BULLISH' && <TrendingUp size={10} />}
-                                {item.impact === 'BEARISH' && <TrendingDown size={10} />}
-                                {item.impact === 'NEUTRAL' && <Minus size={10} />}
-                                {item.impact === 'BULLISH' ? 'BULL' : item.impact === 'BEARISH' ? 'BEAR' : 'NEUT'}
-                            </div>
+                    {/* Analyzing banner */}
+                    {analyzingArticles.length > 0 && (
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 shrink-0">
+                            <Loader2 size={11} className="text-amber-400 animate-spin shrink-0" />
+                            <span className="text-[10px] text-amber-400 font-medium">
+                                {analyzingArticles.length} {tx('analyzing', lang)}
+                            </span>
+                        </div>
+                    )}
 
-                            {/* Source */}
-                            <span className="text-[10px] font-medium text-zinc-400 self-center truncate">{item.source}</span>
-
-                            {/* Headline */}
-                            <span className="text-xs font-medium text-zinc-200 group-hover:text-blaze transition-colors self-center line-clamp-1">{item.title}</span>
-
-                            {/* Entities */}
-                            <div className="flex flex-wrap gap-1 self-center">
-                                {item.who.slice(0, 2).map(w => <span key={w} className="text-[9px] bg-[#2a2a2a] text-zinc-400 px-1.5 py-0.5 rounded border border-[#333]">{w}</span>)}
-                                {item.who.length > 2 && <span className="text-[9px] text-zinc-600">+{item.who.length - 2}</span>}
-                            </div>
-
-                            {/* Open link icon */}
-                            <button onClick={e => { e.stopPropagation(); openUrl(item.url); }}
-                                className="self-center text-zinc-600 hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100 p-1 rounded">
-                                <ExternalLink size={12} />
+                    {/* Error articles */}
+                    {errorArticles.map(a => (
+                        <div key={a.id}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border-b border-red-500/20 shrink-0">
+                            <AlertTriangle size={11} className="text-red-400 shrink-0" />
+                            <span className="flex-1 text-[10px] text-red-400 truncate">{a.title}</span>
+                            <button onClick={() => handleRetry(Number(a.id))}
+                                className="flex items-center gap-0.5 text-[9px] text-red-400 hover:text-red-300 font-bold shrink-0">
+                                <RotateCcw size={9} /> {tx('retryAnalysis', lang)}
                             </button>
                         </div>
                     ))}
-                </div>
-            </div>
 
+                    {/* Article list */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar">
+                        {filteredArticles.length === 0 && allArticles.length === 0 && (
+                            <div className="flex flex-col items-center justify-center h-full gap-2 p-4">
+                                <Rss size={28} className="text-zinc-600" />
+                                <p className="text-xs text-zinc-500 text-center">{tx('noArticles', lang)}</p>
+                                <p className="text-[10px] text-zinc-600 text-center">{tx('scoutFirst', lang)}</p>
+                            </div>
+                        )}
+                        {filteredArticles.map((item) => (
+                            <ArticleListCard
+                                key={item.id}
+                                item={item}
+                                active={item.id === activeId}
+                                onSelect={handleSelect}
+                                lang={lang}
+                            />
+                        ))}
+                    </div>
+                </div>
+
+                {/* ── Col 2: Article Detail ──────────────────────────────── */}
+                <div className="flex flex-col min-h-0">
+                    {activeArticle ? (
+                        <ArticleDetail article={activeArticle} lang={lang} />
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center bg-charcoal rounded-xl border border-[#222]">
+                            <Clock size={36} className="text-zinc-600 mb-3" />
+                            <p className="text-zinc-500 text-sm">{tx('noSelection', lang)}</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* ── Col 3: Broker Panel ─────────────────────────────────── */}
+                <div className="flex flex-col min-h-0 overflow-hidden bg-charcoal rounded-xl border border-[#222]">
+                    <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[#222] shrink-0">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                            {tx('brokerTitle', lang)}
+                        </span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar">
+                        {brokerRecs.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-full gap-2 p-4">
+                                <BarChart2 size={24} className="text-zinc-600" />
+                                <p className="text-xs text-zinc-500 text-center">{tx('brokerEmpty', lang)}</p>
+                            </div>
+                        ) : (
+                            brokerRecs.map(item => (
+                                <BrokerCard key={item.id} item={item} lang={lang} onSelect={handleSelect} />
+                            ))
+                        )}
+                    </div>
+                </div>
+
+            </div>
         </div>
     );
 }
 
+// ─── Article list card ─────────────────────────────────────────────────────────
+function ArticleListCard({ item, active, onSelect, lang }: {
+    item: NewsItem; active: boolean; onSelect: (id: string) => void; lang: Lang;
+}) {
+    const statusIcon = () => {
+        if (item.analysisStatus === 'analyzing') return <Loader2 size={10} className="text-amber-400 animate-spin" />;
+        if (item.analysisStatus === 'error') return <AlertTriangle size={10} className="text-red-400" />;
+        return null;
+    };
+    return (
+        <button
+            onClick={() => onSelect(item.id)}
+            className={`w-full text-left px-3 py-2.5 border-b border-[#1a1a1a] transition-colors ${
+                active
+                    ? 'bg-blood/10 border-l-2 border-l-blood'
+                    : 'hover:bg-[#1a1a1a] border-l-2 border-l-transparent'
+            }`}
+        >
+            <div className="flex items-center gap-1.5 mb-1">
+                {item.impact === 'BULLISH' && <TrendingUp size={10} className="text-emerald-400 shrink-0" />}
+                {item.impact === 'BEARISH' && <TrendingDown size={10} className="text-blood shrink-0" />}
+                {item.impact === 'NEUTRAL' && <Minus size={10} className="text-zinc-500 shrink-0" />}
+                <span className="text-[9px] font-bold text-zinc-500 uppercase shrink-0">{item.source}</span>
+                {statusIcon()}
+                <span className="text-[9px] text-zinc-600 ml-auto shrink-0">{item.time}</span>
+            </div>
+            <p className={`text-[11px] leading-snug line-clamp-2 ${active ? 'text-blaze font-medium' : 'text-zinc-300'}`}>
+                {item.title}
+            </p>
+            {item.who.length > 0 && (
+                <div className="flex gap-1 mt-0.5 flex-wrap">
+                    {item.who.slice(0, 3).map(w => (
+                        <span key={w} className="text-[8px] bg-[#2a2a2a] text-zinc-500 px-1 py-0.5 rounded">{w}</span>
+                    ))}
+                </div>
+            )}
+        </button>
+    );
+}
+
+// ─── Article detail ────────────────────────────────────────────────────────────
+function ArticleDetail({ article, lang }: { article: NewsItem; lang: Lang }) {
+    return (
+        <motion.div
+            layoutId={`card-${article.id}`}
+            key={article.id}
+            className="flex-1 bg-charcoal rounded-xl border border-[#222] flex flex-col overflow-hidden"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+        >
+            {/* Impact bar */}
+            <div className={`h-1.5 w-full bg-gradient-to-r ${impactGradient(article.impact)} shrink-0`} />
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-5 flex flex-col gap-4">
+                {/* Meta row */}
+                <div className="flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-2">
+                        <AlertCircle size={14} className={impactColor(article.impact)} />
+                        <span className="text-xs font-bold uppercase tracking-widest text-white">{tx('hotReport', lang)}</span>
+                        {article.confidence && (
+                            <span className="text-[9px] text-zinc-500 bg-[#1a1a1a] border border-[#333] px-1.5 py-0.5 rounded">
+                                {tx('confidence', lang)} {article.confidence}%
+                            </span>
+                        )}
+                    </div>
+                    <span className="text-xs text-zinc-400 flex items-center gap-1">
+                        <Clock size={12} /> {article.time}
+                    </span>
+                </div>
+
+                {/* Headline */}
+                <h3 className="text-lg font-bold text-white leading-tight shrink-0">{article.title}</h3>
+
+                {/* Summary card */}
+                <div className="space-y-3 text-sm bg-obsidian p-4 rounded-lg border border-[#222]">
+                    <div>
+                        <p className="text-zinc-500 font-semibold mb-1 uppercase text-[10px] tracking-wider">{tx('theWhat', lang)}</p>
+                        <p className="text-zinc-200">{article.what}</p>
+                    </div>
+
+                    <div className="flex gap-4">
+                        {/* Entities + Verdict */}
+                        <div className="flex-1">
+                            <p className="text-zinc-500 font-semibold mb-2 uppercase text-[10px] tracking-wider">{tx('entities', lang)}</p>
+                            <div className="flex flex-wrap gap-1">
+                                {article.who.map(t => (
+                                    <span key={t} className="px-2 py-0.5 bg-[#1a1a1a] text-zinc-300 rounded text-xs border border-[#333]">{t}</span>
+                                ))}
+                                {article.tickers?.map(t => (
+                                    <span key={t} className="px-2 py-0.5 bg-blaze/20 text-blaze rounded text-xs border border-blaze/30 font-bold">{t}</span>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Impact badge */}
+                        <div className="flex-shrink-0">
+                            <p className="text-zinc-500 font-semibold mb-2 uppercase text-[10px] tracking-wider">{tx('verdict', lang)}</p>
+                            <div className={`flex items-center gap-1.5 font-bold px-3 py-2 rounded-lg border text-sm ${article.impact === 'BULLISH' ? 'border-emerald-500/20 text-emerald-400' : article.impact === 'BEARISH' ? 'border-blood/20 text-blood' : 'border-[#333] text-zinc-400'}`}>
+                                {article.impact === 'BULLISH' && <TrendingUp size={16} />}
+                                {article.impact === 'BEARISH' && <TrendingDown size={16} />}
+                                {article.impact === 'NEUTRAL' && <Minus size={16} />}
+                                {article.impact}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Key price factors */}
+                    {article.keyPriceFactors && article.keyPriceFactors.length > 0 && (
+                        <div>
+                            <p className="text-zinc-500 font-semibold mb-1.5 uppercase text-[10px] tracking-wider">{tx('priceFactors', lang)}</p>
+                            <div className="flex flex-col gap-1">
+                                {article.keyPriceFactors.map((f, i) => (
+                                    <div key={i} className="flex items-start gap-1.5">
+                                        <span className="text-blaze shrink-0 mt-0.5">›</span>
+                                        <span className="text-zinc-300 text-xs">{f}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Reasoning */}
+                    <div>
+                        <p className="text-zinc-500 font-semibold mb-1 uppercase text-[10px] tracking-wider">{tx('reasoning', lang)}</p>
+                        <p className="text-zinc-300 italic text-sm">"{article.how.reasoning}"</p>
+                    </div>
+
+                    {/* Risk + Sectors */}
+                    {(article.riskLevel || article.riskLevel) && (
+                        <div className="flex gap-3">
+                            {article.riskLevel && (
+                                <div>
+                                    <p className="text-zinc-500 font-semibold mb-1 uppercase text-[10px] tracking-wider">{tx('riskLevel', lang)}</p>
+                                    <span className={`text-xs font-bold ${riskColor(article.riskLevel)}`}>{article.riskLevel}</span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* AI Recommendation */}
+                    <div className="pt-3 border-t border-[#333]">
+                        <p className="text-blaze font-bold mb-1.5 flex items-center gap-2 uppercase text-[10px] tracking-wider">
+                            <Bot size={14} /> {tx('reco', lang)}
+                        </p>
+                        <p className="text-zinc-200 text-sm">{article.recommendation}</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Footer: open in browser */}
+            <div className="px-5 pb-4 shrink-0">
+                <button
+                    onClick={() => openUrl(article.url)}
+                    className="flex items-center gap-2 text-xs font-medium text-blue-400 hover:text-blue-300 transition">
+                    {tx('readOriginal', lang)} {article.source} <ExternalLink size={12} />
+                </button>
+            </div>
+        </motion.div>
+    );
+}
+
+// ─── Broker card ───────────────────────────────────────────────────────────────
+function BrokerCard({ item, lang, onSelect }: {
+    item: NewsItem; lang: Lang; onSelect: (id: string) => void;
+}) {
+    return (
+        <button
+            onClick={() => onSelect(item.id)}
+            className="w-full text-left px-3 py-2.5 border-b border-[#1a1a1a] hover:bg-[#1a1a1a] transition-colors"
+        >
+            <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[9px] font-bold text-blaze uppercase bg-blaze/10 px-1.5 py-0.5 rounded shrink-0">CTCK</span>
+                {item.impact === 'BULLISH' && <TrendingUp size={9} className="text-emerald-400" />}
+                {item.impact === 'BEARISH' && <TrendingDown size={9} className="text-blood" />}
+                {item.impact === 'NEUTRAL' && <Minus size={9} className="text-zinc-500" />}
+                <span className="text-[9px] text-zinc-600 ml-auto shrink-0">{item.time}</span>
+            </div>
+            <p className="text-[11px] text-zinc-300 leading-snug line-clamp-2 mb-1">{item.title}</p>
+            <p className="text-[9px] text-zinc-500 line-clamp-1">{item.what}</p>
+        </button>
+    );
+}
+
+// ─── Missing icons ─────────────────────────────────────────────────────────────
+// Rss and BarChart2 are referenced but not in the lucide-react import above.
+// Add them to the import or define stubs inline:
+function Rss({ size, className }: { size: number; className?: string }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <path d="M4 11a9 9 0 0 1 9 9" /><path d="M4 4a16 16 0 0 1 16 16" />
+            <circle cx="5" cy="19" r="1" fill="currentColor" stroke="none" />
+        </svg>
+    );
+}
+function BarChart2({ size, className }: { size: number; className?: string }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <path d="M18 20V10M12 20V4M6 20v-6" />
+        </svg>
+    );
+}

@@ -10,19 +10,36 @@ export interface Article {
     entities: string;      // JSON string of string[]
     recommendation: string;
     scraped_at?: string;
+    // Extended fields for analyst v2
+    analysis_status?: string;
+    confidence?: number;
+    key_price_factors?: string;
+    risk_level?: string;
+    sectors?: string;
+    tickers?: string;
 }
 
 export interface DbSettings {
     prune_interval: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'never';
     scout_frequency_mins: number;
+    analyzer_backend: 'ollama' | 'claude' | 'tekki';
 }
 
 export const db = {
     insertArticle: (article: Article) =>
         invoke<number>('cmd_insert_article', { article }),
 
+    // Returns all articles (any status), newest first.
     getArticles: (limit = 200, search?: string) =>
         invoke<Article[]>('cmd_get_articles', { limit, search }),
+
+    // Returns only analyzed ('done') articles — cache-first for instant-open.
+    getLatestAnalyzedArticles: (limit = 50, search?: string) =>
+        invoke<Article[]>('cmd_get_latest_analyzed_articles', { limit, search }),
+
+    // Returns canonical backend-supported source names for parity validation.
+    getSupportedSources: () =>
+        invoke<string[]>('cmd_get_supported_sources'),
 
     countArticles: () =>
         invoke<number>('cmd_count_articles'),
@@ -41,6 +58,9 @@ export const db = {
 
     analyzeNow: () =>
         invoke<number>('cmd_analyze_now'),
+
+    retryAnalysis: (articleId: number) =>
+        invoke<void>('cmd_retry_analysis', { articleId }),
 
     scoutStatus: () =>
         invoke<boolean>('cmd_scout_status'),
