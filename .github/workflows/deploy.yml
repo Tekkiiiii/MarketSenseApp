@@ -17,6 +17,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: tintai
+          projectName: thuongminh-landing
           directory: landing
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
