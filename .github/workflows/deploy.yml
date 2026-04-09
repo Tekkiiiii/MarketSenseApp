@@ -6,8 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  deployments: write
+  contents: read
 
 jobs:
   deploy:
@@ -17,10 +16,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: thuongminh-landing
-          directory: landing
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          command: pages deploy landing --project-name=thuongminh-landing
