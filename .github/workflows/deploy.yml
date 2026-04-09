@@ -49,14 +49,24 @@ jobs:
                   h.update(headers_extra)
               body = json.dumps(data).encode() if data else None
               req = urllib.request.Request(base + path, data=body, headers=h, method="POST")
-              with urllib.request.urlopen(req) as resp:
-                  return json.loads(resp.read())
+              try:
+                  with urllib.request.urlopen(req) as resp:
+                      return json.loads(resp.read())
+              except urllib.error.HTTPError as e:
+                  error_body = e.read().decode() if e.fp else ""
+                  print(f"POST {path} → HTTP {e.code}: {error_body}")
+                  raise
 
           def api_put(url, data, content_type):
               h = {"Authorization": auth, "Content-Type": content_type}
               req = urllib.request.Request(url, data=data, headers=h, method="PUT")
-              with urllib.request.urlopen(req) as resp:
-                  return json.loads(resp.read())
+              try:
+                  with urllib.request.urlopen(req) as resp:
+                      return json.loads(resp.read())
+              except urllib.error.HTTPError as e:
+                  error_body = e.read().decode() if e.fp else ""
+                  print(f"PUT {url} → HTTP {e.code}: {error_body}")
+                  raise
 
           # Step 1: verify project
           print("=== Verifying project ===")
