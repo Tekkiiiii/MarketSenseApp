@@ -78,7 +78,7 @@ jobs:
 
           # Step 2: create deployment
           print("=== Creating deployment ===")
-          deploy = api_post(f"/pages/projects/{project}/deployments", {"branch": "main"})
+          deploy = api_post(f"/pages/projects/{project}/deployments", {"branch": "main", "manifest": {}})
           if not deploy.get("success"):
               print(f"ERROR creating deployment: {deploy}")
               raise SystemExit(1)
