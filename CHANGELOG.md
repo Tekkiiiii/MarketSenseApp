@@ -18,3 +18,4 @@ All notable changes to **ThuongMinh** will be documented in this file.
 | macOS (Apple Silicon) | `ThuongMinh_1.0.0_aarch64.dmg` |
 | macOS (Intel) | `ThuongMinh_1.0.0_x86_64.dmg` |
 | Windows | `ThuongMinh_1.0.0_x86_64-setup.exe` |
+
