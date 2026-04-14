@@ -19,8 +19,10 @@ jobs:
         include:
           - platform: macos-latest
             target: aarch64-apple-darwin
+            pattern: "ThuongMinh_*_aarch64.dmg"
           - platform: macos-latest
             target: x86_64-apple-darwin
+            pattern: "ThuongMinh_*_x86_64.dmg"
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout
@@ -46,11 +48,6 @@ jobs:
 
       - name: Patch create-dmg for headless CI
         run: |
-          # In CI there is no Finder/AppleScript — skip the cosmetic AppleScript step
-          find "$(brew --prefix)/bin" -name "create-dmg" 2>/dev/null | head -1 | xargs -I{} \
-            grep -q "SKIP_JENKINS" {} || true
-          # The generated bundle_dmg.sh calls create-dmg without --skip-jenkins.
-          # Patch the generated script in-place before the Tauri bundler runs.
           DMG_SCRIPT="src-tauri/target/release/bundle/dmg/bundle_dmg.sh"
           if [[ -f "$DMG_SCRIPT" ]]; then
             sed -i '' 's/create-dmg /create-dmg --skip-jenkins /g' "$DMG_SCRIPT"
@@ -81,7 +78,7 @@ jobs:
             See [CHANGELOG.md](https://github.com/Tekkiiiii/MarketSenseApp/blob/main/CHANGELOG.md) for full release notes.
           releaseDraft: true
           prerelease: false
-          assetNamePattern: "**/ThuongMinh_*.dmg"
+          assetNamePattern: "**/${{ matrix.pattern }}"
 
   # ─── Windows — builds NSIS .exe installer ────────────────────────────────
   build-windows:
