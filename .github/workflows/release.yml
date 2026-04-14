@@ -81,9 +81,7 @@ jobs:
             See [CHANGELOG.md](https://github.com/Tekkiiiii/MarketSenseApp/blob/main/CHANGELOG.md) for full release notes.
           releaseDraft: true
           prerelease: false
-          assetNamePattern: "**/ThuongMinh_*.{dmg,exe}"
-            **/*.dmg
-            **/*.exe
+          assetNamePattern: "**/ThuongMinh_*.dmg"
 
   # ─── Windows — builds NSIS .exe installer ────────────────────────────────
   build-windows:
@@ -131,6 +129,4 @@ jobs:
             See [CHANGELOG.md](https://github.com/Tekkiiiii/MarketSenseApp/blob/main/CHANGELOG.md) for full release notes.
           releaseDraft: true
           prerelease: false
-          assetNamePattern: "**/ThuongMinh_*.{dmg,exe}"
-            **/*.dmg
-            **/*.exe
+          assetNamePattern: "**/ThuongMinh_*.exe"
