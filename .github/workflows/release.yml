@@ -67,16 +67,10 @@ jobs:
           releaseBody: |
             ## Downloads
 
-            | Platform | File |
-            |----------|------|
-            | macOS (Apple Silicon) | `ThuongMinh_*.aarch64.dmg` |
-            | macOS (Intel) | `ThuongMinh_*.x86_64.dmg` |
-            | Windows | `ThuongMinh_*.exe` |
+            Download the latest release for your platform below.
 
-            ## What's New
-
-            See [CHANGELOG.md](https://github.com/Tekkiiiii/MarketSenseApp/blob/main/CHANGELOG.md) for full release notes.
-          releaseDraft: true
+            See `CHANGELOG.md` in this release for full release notes.
+          releaseDraft: false
           prerelease: false
           assetNamePattern: "**/${{ matrix.pattern }}"
 
@@ -115,15 +109,9 @@ jobs:
           releaseBody: |
             ## Downloads
 
-            | Platform | File |
-            |----------|------|
-            | macOS (Apple Silicon) | `ThuongMinh_*.aarch64.dmg` |
-            | macOS (Intel) | `ThuongMinh_*.x86_64.dmg` |
-            | Windows | `ThuongMinh_*.exe` |
+            Download the latest release for your platform below.
 
-            ## What's New
-
-            See [CHANGELOG.md](https://github.com/Tekkiiiii/MarketSenseApp/blob/main/CHANGELOG.md) for full release notes.
-          releaseDraft: true
+            See `CHANGELOG.md` in this release for full release notes.
+          releaseDraft: false
           prerelease: false
           assetNamePattern: "**/ThuongMinh_*.exe"
